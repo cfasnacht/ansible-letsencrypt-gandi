@@ -2,11 +2,11 @@
 
 - name: lets encrypt play
   hosts: letsencrypt-server
+  vars_files: group_vars/vault.yml
   vars:
     ansible_user: root
     package_name: python3-certbot
     letsencrypt_home: /var/lib/letsencrypt
-    api_key: not_a_key
     ttl: 300
 
   tasks:
@@ -68,10 +68,10 @@
       content: |
         #!/bin/bash
         set -e
-        APIOUTPUT="$( curl -s -H 'X-Api-Key: {{ api_key }}' https://dns.api.gandi.net/api/v5/zones )"
+        APIOUTPUT="$( curl -s -H 'X-Api-Key: {{ gandi_api_key }}' https://dns.api.gandi.net/api/v5/zones )"
         APIURL="$( echo $APIOUTPUT | jq -r --arg CERTBOT_DOMAIN "$CERTBOT_DOMAIN" '.[] | select(.name==$CERTBOT_DOMAIN) | .zone_records_href' )"
         TXTNAME=_acme-challenge
-        CURL_OUTPUT=$( curl -s -X PUT -H "Content-Type: application/json" -H "X-Api-Key: {{ api_key }}" -d "{\"rrset_ttl\": "{{ ttl }}", \"rrset_values\": [\"$CERTBOT_VALIDATION\"]}" "$APIURL/$TXTNAME/TXT" )
+        CURL_OUTPUT=$( curl -s -X PUT -H "Content-Type: application/json" -H "X-Api-Key: {{ gandi_api_key }}" -d "{\"rrset_ttl\": "{{ ttl }}", \"rrset_values\": [\"$CERTBOT_VALIDATION\"]}" "$APIURL/$TXTNAME/TXT" )
         if [[ ! $CURL_OUTPUT =~ "DNS Record Created" ]]; then
           exit 1
         fi

@@ -1,4 +1,0 @@
----
-
-letsencrypt_domains:
-letsencrypt_api_key: "{{ vault_letsencrypt_api_key }}"
