@@ -6,6 +6,8 @@
     ansible_user: root
     package_name: python3-certbot
     letsencrypt_home: /var/lib/letsencrypt
+    api_key: not_a_key
+    ttl: 300
 
   tasks:
   - name: install
@@ -38,7 +40,7 @@
       recurse: true
       owner: letsencrypt
       group: letsencrypt
-      mode: 0650
+      mode: 0750
 
   - name: create home etc
     file:
@@ -55,3 +57,35 @@
       src: /var/lib/letsencrypt/etc-letsencrypt
       state: link
       force: yes
+  - name:
+    apt:
+      name: jq
+      state: present
+
+  - name: create letsencrypt wildcard token script
+    copy:
+      dest: /usr/local/sbin/certbot-gandi.sh
+      content: |
+        #!/bin/bash
+        set -e
+        APIOUTPUT="$( curl -s -H 'X-Api-Key: {{ api_key }}' https://dns.api.gandi.net/api/v5/zones )"
+        APIURL="$( echo $APIOUTPUT | jq -r --arg CERTBOT_DOMAIN "$CERTBOT_DOMAIN" '.[] | select(.name==$CERTBOT_DOMAIN) | .zone_records_href' )"
+        TXTNAME=_acme-challenge
+        CURL_OUTPUT=$( curl -s -X PUT -H "Content-Type: application/json" -H "X-Api-Key: {{ api_key }}" -d "{\"rrset_ttl\": "{{ ttl }}", \"rrset_values\": [\"$CERTBOT_VALIDATION\"]}" "$APIURL/$TXTNAME/TXT" )
+        if [[ ! $CURL_OUTPUT =~ "DNS Record Created" ]]; then
+          exit 1
+        fi
+      mode: 0550
+      owner: letsencrypt
+      group: letsencrypt
+
+  - name: disable certbot timer
+    systemd:
+      name: certbot.timer
+      state: stopped
+      enabled: false
+
+  - name: overwrite certbot cron, so that is no longer triggered as root
+    copy:
+      dest: /etc/cron.d/certbot
+      content: ""
